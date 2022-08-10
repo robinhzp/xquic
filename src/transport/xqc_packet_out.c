@@ -672,7 +672,7 @@ xqc_write_new_token_to_packet(xqc_connection_t *conn)
     xqc_conn_gen_token(conn, token, &token_len);
 
     need = 1 /* type */
-            + xqc_vint_get_2bit(token_len) /* token len */
+            + xqc_vint_len_by_val(token_len) /* token len */
             + token_len; /* token */
 
     packet_out = xqc_write_packet(conn, XQC_PTYPE_SHORT_HEADER, need);
@@ -873,3 +873,31 @@ xqc_write_retire_conn_id_frame_to_packet(xqc_connection_t *conn, uint64_t seq_nu
 
 
 
+
+xqc_int_t
+xqc_write_path_response_frame_to_packet(xqc_connection_t *conn, unsigned char *path_response_data)
+{
+    xqc_int_t ret = XQC_ERROR;
+
+    xqc_packet_out_t *packet_out = xqc_write_new_packet(conn, XQC_PTYPE_SHORT_HEADER);
+    if (packet_out == NULL) {
+        xqc_log(conn->log, XQC_LOG_ERROR, "|xqc_write_new_packet error|");
+        return -XQC_EWRITE_PKT;
+    }
+
+    ret = xqc_gen_path_response_frame(packet_out, path_response_data);
+    if (ret < 0) {
+        xqc_log(conn->log, XQC_LOG_ERROR, "|xqc_gen_path_response_frame error|%d|", ret);
+        goto error;
+    }
+
+    packet_out->po_used_size += ret;
+
+    xqc_send_ctl_move_to_head(&packet_out->po_list, &conn->conn_send_ctl->ctl_send_packets);
+
+    return XQC_OK;
+
+error:
+    xqc_maybe_recycle_packet_out(packet_out, conn);
+    return ret;
+}
